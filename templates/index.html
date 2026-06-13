@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公众号排版工坊</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f5f5;color:#333}
+
+/* 顶栏 */
+.topbar{background:linear-gradient(135deg,#4A8C5C,#2D6B3F);color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:18px;font-weight:600}
+.topbar .actions{display:flex;gap:8px;align-items:center}
+.topbar .actions button{padding:5px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;font-size:12px;cursor:pointer}
+.topbar .actions button:hover{background:rgba(255,255,255,.15)}
+.topbar .status{font-size:12px;opacity:.85}
+
+/* 主布局 */
+.main{display:flex;height:calc(100vh - 44px)}
+
+/* 左侧编辑区 */
+.editor-panel{width:50%;display:flex;flex-direction:column;border-right:1px solid #e0e0e0}
+.toolbar{padding:8px 12px;background:#fafafa;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.toolbar select{padding:5px 8px;border-radius:6px;border:1px solid #ddd;font-size:12px;max-width:220px}
+.toolbar button{padding:5px 12px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer}
+.toolbar button:hover{background:#f0f0f0}
+.toolbar button.primary{background:#4A8C5C;color:#fff;border-color:#4A8C5C}
+.toolbar button.primary:hover{background:#3D7549}
+.toolbar button.danger{background:#e74c3c;color:#fff;border-color:#e74c3c}
+.toolbar button.danger:hover{background:#c0392b}
+.toolbar label{font-size:12px;color:#666}
+.toolbar input[type=color]{width:28px;height:24px;border:1px solid #ddd;border-radius:4px;cursor:pointer;padding:0}
+.toolbar input[type=range]{width:60px;vertical-align:middle}
+
+.editor-area{flex:1;position:relative}
+.editor-area textarea{width:100%;height:100%;border:none;padding:16px;font-size:14px;line-height:1.8;font-family:"SF Mono","Fira Code","Noto Sans SC",monospace;resize:none;outline:none}
+.editor-area .upload-hint{position:absolute;bottom:8px;left:12px;font-size:11px;color:#aaa}
+
+/* 右侧预览区 */
+.preview-panel{width:50%;display:flex;flex-direction:column;background:#fff}
+.preview-header{padding:8px 12px;background:#fafafa;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;font-size:12px;color:#888}
+.preview-area{flex:1;overflow-y:auto;padding:16px;background:#f5f5f5}
+.preview-frame{max-width:375px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden;min-height:300px}
+
+/* 设置弹窗 */
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:100}
+.modal-bg.active{display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:14px;padding:24px;width:520px;max-height:80vh;overflow-y:auto}
+.modal h2{font-size:18px;margin-bottom:16px}
+.modal .field{margin-bottom:14px}
+.modal .field label{display:block;font-size:13px;color:#666;margin-bottom:4px}
+.modal .field input{width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px}
+.modal .field input:focus{outline:none;border-color:#4A8C5C}
+.modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+/* 提示消息 */
+.toast{position:fixed;top:56px;right:16px;padding:10px 18px;border-radius:8px;color:#fff;font-size:13px;z-index:200;opacity:0;transition:opacity .3s;max-width:360px}
+.toast.show{opacity:1}
+.toast.success{background:#4A8C5C}
+.toast.error{background:#e74c3c}
+
+/* 响应式 */
+@media(max-width:768px){
+  .main{flex-direction:column}
+  .editor-panel,.preview-panel{width:100%;height:50vh}
+  .toolbar{font-size:12px;gap:4px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>📝 公众号排版工坊</h1>
+  <div class="actions">
+    <span class="status" id="tokenStatus">检查中...</span>
+    <button onclick="copyHTML()">📋 复制排版</button>
+    <button onclick="openSettings()">⚙️ 设置</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- 左侧编辑 -->
+  <div class="editor-panel">
+    <div class="toolbar">
+      <button onclick="uploadMD()">📂 上传MD</button>
+      <input type="file" id="mdFileInput" accept=".md,.txt,.markdown" style="display:none" onchange="handleMDUpload(this)">
+      <button onclick="insertImage()">🖼 插图</button>
+      <input type="file" id="imgFileInput" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
+      <button onclick="setCoverImage()">🖼 封面</button>
+      <input type="file" id="coverFileInput" accept="image/*" style="position:absolute;top:-9999px;opacity:0;" onchange="handleCoverUpload(this)">
+      <span id="coverStatus" style="font-size:11px;color:#5B8C5A;display:none;">✅ 封面已设</span>
+      <span style="color:#ccc">|</span>
+      <label>主题：</label>
+      <select id="themeSelect" onchange="onThemeChange()"></select>
+      <span style="color:#ccc">|</span>
+      <label>色调</label><input type="color" id="colorOverride" onchange="doPreview()" title="微调主色">
+      <label>字号</label><input type="range" id="fontSizeSlider" min="13" max="18" value="15" oninput="document.getElementById('fontSizeVal').textContent=this.value;doPreview()"><span id="fontSizeVal">15</span>
+      <span style="flex:1"></span>
+      <button class="primary" onclick="doPreview()">👁 预览</button>
+      <button class="danger" onclick="doPublish()">🚀 推送</button>
+    </div>
+    <div class="editor-area">
+      <textarea id="mdEditor" placeholder="在此输入 Markdown 内容..."></textarea>
+      <div class="upload-hint">拖拽图片到编辑器可插入 | 支持 tag / card / tip / num 特殊语法</div>
+    </div>
+  </div>
+
+  <!-- 右侧预览 -->
+  <div class="preview-panel">
+    <div class="preview-header">
+      <span>📱 微信预览 (375px)</span>
+      <span style="flex:1"></span>
+      <span id="articleInfo"></span>
+    </div>
+    <div class="preview-area">
+      <div class="preview-frame" id="previewContent">
+        <div style="padding:40px;text-align:center;color:#ccc">
+          <p style="font-size:48px">📝</p>
+          <p style="margin-top:12px">输入内容后自动预览</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ 微信公众号设置</h2>
+    <div class="field">
+      <label>AppID</label>
+      <input type="text" id="cfgAppId" placeholder="wx...">
+    </div>
+    <div class="field">
+      <label>AppSecret</label>
+      <input type="password" id="cfgAppSecret" placeholder="输入新的AppSecret">
+    </div>
+    <div class="field">
+      <label>作者名</label>
+      <input type="text" id="cfgAuthor" placeholder="XKA北辰星团队">
+    </div>
+    <div id="cfgStatus" style="font-size:13px;color:#888;margin-bottom:8px"></div>
+    <div class="btn-row">
+      <button onclick="closeSettings()" style="padding:8px 16px;border-radius:6px;border:1px solid #ddd;cursor:pointer">取消</button>
+      <button onclick="saveSettings()" style="padding:8px 16px;border-radius:6px;border:none;background:#4A8C5C;color:#fff;cursor:pointer">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 提示消息 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// 注入后端数据
+const THEMES = {{ themes | tojson }};
+</script>
+<script>
+// ========== 全局状态 ==========
+let currentTheme = 'herb-garden';
+let uploadedImages = [];  // [{filename, path, url}]
+let coverImageUrl = localStorage.getItem('coverImageUrl') || '';  // 封面图路径，持久化
+
+// 恢复封面状态显示
+if (coverImageUrl) {
+  document.addEventListener('DOMContentLoaded', function() {
+    const cs = document.getElementById('coverStatus');
+    if (cs) cs.style.display = 'inline';
+  });
+}
+
+// ========== 初始化 ==========
+function init() {
+  initThemeSelect();
+  checkToken();
+  loadCredentials();
+
+  // 自动预览（防抖800ms）
+  let timer;
+  document.getElementById('mdEditor').addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(doPreview, 800);
+  });
+
+  // 拖拽图片
+  const editor = document.getElementById('mdEditor');
+  editor.addEventListener('dragover', e => { e.preventDefault(); });
+  editor.addEventListener('drop', handleDrop);
+
+  // 字号滑块显示
+  document.getElementById('fontSizeSlider').addEventListener('input', function() {
+    document.getElementById('fontSizeVal').textContent = this.value;
+  });
+}
+
+// ========== 主题选择 ==========
+function initThemeSelect() {
+  const sel = document.getElementById('themeSelect');
+  const groups = {};
+
+  // 按分类分组
+  for (const [key, t] of Object.entries(THEMES)) {
+    const cat = t.category || '其他';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push({key, ...t});
+  }
+
+  sel.innerHTML = '';
+  for (const [cat, items] of Object.entries(groups)) {
+    const grp = document.createElement('optgroup');
+    grp.label = cat;
+    items.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.key;
+      opt.textContent = item.name + ' — ' + item.desc;
+      if (item.key === currentTheme) opt.selected = true;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  }
+}
+
+function onThemeChange() {
+  currentTheme = document.getElementById('themeSelect').value;
+  // 重置颜色微调为新主题的主色
+  const t = THEMES[currentTheme];
+  if (t && t.colors && t.colors.primary) {
+    document.getElementById('colorOverride').value = t.colors.primary;
+  }
+  doPreview();
+}
+
+// ========== 文件上传 ==========
+function uploadMD() {
+  document.getElementById('mdFileInput').click();
+}
+
+function handleMDUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('mdEditor').value = e.target.result;
+    document.getElementById('articleInfo').textContent = '📄 ' + file.name;
+    doPreview();
+    showToast('已加载：' + file.name, 'success');
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function insertImage() {
+  document.getElementById('imgFileInput').click();
+}
+
+async function handleImageUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/api/upload', {method:'POST', body:formData});
+    const data = await resp.json();
+    if (data.success) {
+      const md = document.getElementById('mdEditor');
+      const pos = md.selectionStart;
+      const before = md.value.substring(0, pos);
+      const after = md.value.substring(pos);
+      const imgMd = `\n![${file.name}](${data.url})\n`;
+      md.value = before + imgMd + after;
+      uploadedImages.push({filename: data.filename, path: data.path, url: data.url});
+      doPreview();
+      showToast('图片已插入', 'success');
+    } else {
+      showToast('上传失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch(e) {
+    showToast('上传失败：' + e.message, 'error');
+  }
+  input.value = '';
+}
+
+// ========== 封面图上传 ==========
+function setCoverImage() {
+  document.getElementById('coverFileInput').click();
+}
+
+async function handleCoverUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/api/upload', {method:'POST', body:formData});
+    const data = await resp.json();
+    if (data.success) {
+      coverImageUrl = data.url;
+      localStorage.setItem('coverImageUrl', data.url);
+      document.getElementById('coverStatus').style.display = 'inline';
+      showToast('封面图已设置：' + file.name, 'success');
+    } else {
+      showToast('封面上传失败：' + (data.error || '未知错误'), 'error');
+    }
+  } catch(e) {
+    showToast('封面上传失败：' + e.message, 'error');
+  }
+  input.value = '';
+}
+
+// 拖拽图片
+async function handleDrop(e) {
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const resp = await fetch('/api/upload', {method:'POST', body:formData});
+      const data = await resp.json();
+      if (data.success) {
+        const md = document.getElementById('mdEditor');
+        const imgMd = `\n![${file.name}](${data.url})\n`;
+        md.value += imgMd;
+        uploadedImages.push({filename: data.filename, path: data.path, url: data.url});
+      }
+    } catch(err) {}
+  }
+  doPreview();
+}
+
+// ========== 预览 ==========
+async function doPreview() {
+  const md = document.getElementById('mdEditor').value;
+  if (!md.trim()) {
+    document.getElementById('previewContent').innerHTML = '<div style="padding:40px;text-align:center;color:#ccc"><p style="font-size:48px">📝</p><p style="margin-top:12px">请先输入文章内容</p></div>';
+    return;
+  }
+
+  const overrides = {};
+  const customColor = document.getElementById('colorOverride').value;
+  const fontSize = document.getElementById('fontSizeSlider').value;
+
+  // 检测用户是否改了颜色
+  const t = THEMES[currentTheme];
+  if (t && t.colors && customColor !== t.colors.primary) {
+    overrides.primary = customColor;
+  }
+  if (fontSize !== '15') {
+    overrides.font_size = fontSize + 'px';
+  }
+
+  try {
+    const resp = await fetch('/api/preview', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({md_content: md, theme: currentTheme, overrides: overrides})
+    });
+    if (!resp.ok) {
+      showToast('预览失败：HTTP ' + resp.status, 'error');
+      return;
+    }
+    const data = await resp.json();
+    if (data.html) {
+      document.getElementById('previewContent').innerHTML = data.html;
+    } else if (data.error) {
+      showToast('预览失败：' + data.error, 'error');
+    }
+  } catch(e) {
+    showToast('预览失败：' + e.message, 'error');
+  }
+}
+
+// ========== 复制排版HTML ==========
+async function copyHTML() {
+  const previewEl = document.getElementById('previewContent');
+  const html = previewEl.innerHTML;
+  if (!html || html.includes('请先输入文章内容')) {
+    showToast('请先预览文章再复制', 'error');
+    return;
+  }
+
+  try {
+    // 核心：把HTML渲染到临时div，选中DOM节点后execCommand复制富文本
+    // 这是公众号编辑器唯一可靠识别的富文本复制方式
+    const tmpDiv = document.createElement('div');
+    tmpDiv.innerHTML = html;
+    tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+    document.body.appendChild(tmpDiv);
+
+    const range = document.createRange();
+    range.selectNodeContents(tmpDiv);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    document.body.removeChild(tmpDiv);
+
+    showToast('✅ 排版已复制！可直接粘贴到公众号编辑器', 'success');
+  } catch(e) {
+    // 降级：ClipboardItem写text/html
+    try {
+      if (navigator.clipboard && navigator.clipboard.write) {
+        const blob = new Blob([html], {type: 'text/html'});
+        const textBlob = new Blob([previewEl.innerText], {type: 'text/plain'});
+        await navigator.clipboard.write([
+          new ClipboardItem({'text/html': blob, 'text/plain': textBlob})
+        ]);
+        showToast('✅ 排版已复制！可直接粘贴到公众号编辑器', 'success');
+      } else {
+        throw new Error('clipboard API不可用');
+      }
+    } catch(e2) {
+      showToast('复制失败：' + e2.message, 'error');
+    }
+  }
+}
+
+// ========== 推送草稿箱 ==========
+async function doPublish() {
+  const md = document.getElementById('mdEditor').value;
+  if (!md.trim()) { showToast('请先输入文章内容', 'error'); return; }
+
+  const creds = getCredentials();
+  if (!creds.app_id || !creds.app_secret) {
+    showToast('请先在设置中配置 AppID 和 AppSecret', 'error');
+    openSettings();
+    return;
+  }
+
+  if (!confirm('确认推送到微信公众号草稿箱？')) return;
+
+  // 调试：检查凭证和封面
+  console.log('[推送] coverImageUrl:', coverImageUrl);
+  console.log('[推送] app_id:', creds.app_id ? '已填' : '空');
+  console.log('[推送] app_secret:', creds.app_secret ? '已填' : '空');
+
+  showToast('正在推送...', 'success');
+
+  const overrides = {};
+  const customColor = document.getElementById('colorOverride').value;
+  const fontSize = document.getElementById('fontSizeSlider').value;
+  const t = THEMES[currentTheme];
+  if (t && t.colors && customColor !== t.colors.primary) overrides.primary = customColor;
+  if (fontSize !== '15') overrides.font_size = fontSize + 'px';
+
+  try {
+    const resp = await fetch('/api/publish', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        md_content: md, theme: currentTheme, overrides: overrides,
+        app_id: creds.app_id, app_secret: creds.app_secret, author: creds.author,
+        cover_url: coverImageUrl
+      })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('🎉 ' + data.message, 'success');
+    } else {
+      showToast('❌ ' + (data.error || '推送失败'), 'error');
+    }
+  } catch(e) {
+    showToast('推送请求失败：' + e.message, 'error');
+  }
+}
+
+// ========== Token 状态 ==========
+async function checkToken() {
+  const creds = getCredentials();
+  if (!creds.app_id || !creds.app_secret) {
+    document.getElementById('tokenStatus').textContent = '❌ 未配置';
+    return;
+  }
+  try {
+    const resp = await fetch('/api/token_status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({app_id: creds.app_id, app_secret: creds.app_secret})
+    });
+    const data = await resp.json();
+    const el = document.getElementById('tokenStatus');
+    if (data.configured && data.valid) {
+      el.textContent = '✅ API已连接';
+    } else if (data.configured) {
+      el.textContent = '⚠️ Token失败';
+    } else {
+      el.textContent = '❌ 未配置';
+    }
+  } catch(e) {
+    document.getElementById('tokenStatus').textContent = '❌ 服务未连接';
+  }
+}
+
+// ========== 凭证管理（localStorage）==========
+function getCredentials() {
+  try {
+    return {
+      app_id: localStorage.getItem('wechat_app_id') || '',
+      app_secret: localStorage.getItem('wechat_app_secret') || '',
+      author: localStorage.getItem('wechat_author') || 'XKA北辰星团队'
+    };
+  } catch(e) {
+    return {app_id: '', app_secret: '', author: 'XKA北辰星团队'};
+  }
+}
+
+// ========== 设置 ==========
+function openSettings() {
+  document.getElementById('settingsModal').classList.add('active');
+  const creds = getCredentials();
+  document.getElementById('cfgAppId').value = creds.app_id;
+  document.getElementById('cfgAppSecret').value = '';
+  document.getElementById('cfgAppSecret').placeholder = creds.app_secret ? '已配置（留空则不修改）' : '请输入AppSecret';
+  document.getElementById('cfgAuthor').value = creds.author;
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('active');
+}
+
+document.getElementById('settingsModal').onclick = function(e) {
+  if (e.target === this) closeSettings();
+};
+
+async function saveSettings() {
+  const appId = document.getElementById('cfgAppId').value.trim();
+  const secret = document.getElementById('cfgAppSecret').value.trim();
+  const author = document.getElementById('cfgAuthor').value.trim();
+
+  if (!appId && !secret && !author) {
+    showToast('没有修改', 'error');
+    return;
+  }
+
+  // 保存到 localStorage
+  try {
+    if (appId) localStorage.setItem('wechat_app_id', appId);
+    if (secret) localStorage.setItem('wechat_app_secret', secret);
+    if (author) localStorage.setItem('wechat_author', author);
+  } catch(e) {
+    showToast('保存失败：浏览器不支持localStorage', 'error');
+    return;
+  }
+
+  // 验证凭证
+  const creds = getCredentials();
+  if (creds.app_id && creds.app_secret) {
+    document.getElementById('cfgStatus').textContent = '验证中...';
+    try {
+      const resp = await fetch('/api/token_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({app_id: creds.app_id, app_secret: creds.app_secret})
+      });
+      const result = await resp.json();
+      if (result.valid) {
+        document.getElementById('cfgStatus').textContent = '✅ 凭证有效，API连接正常';
+        showToast('凭证验证成功', 'success');
+      } else {
+        document.getElementById('cfgStatus').textContent = '⚠️ 凭证已保存，但API连接失败';
+        showToast('凭证已保存，但验证失败', 'error');
+      }
+    } catch(e) {
+      document.getElementById('cfgStatus').textContent = '⚠️ 已保存，验证请求失败';
+    }
+  } else {
+    document.getElementById('cfgStatus').textContent = '已保存';
+    showToast('设置已保存', 'success');
+  }
+
+  checkToken();
+  setTimeout(closeSettings, 2000);
+}
+
+// ========== Toast ==========
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type + ' show';
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ========== 启动 ==========
+init();
+</script>
+</body>
+</html>

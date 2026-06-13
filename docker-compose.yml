@@ -1,0 +1,17 @@
+services:
+  wechat-typeset:
+    build: .
+    container_name: wechat-typeset
+    ports:
+      - "9120:9120"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/tmp/wechat_typeset_uploads
+      - ./templates:/app/templates
+      - ./themes.py:/app/themes.py
+      - ./app.py:/app/app.py
+      - ./wechat_api.py:/app/wechat_api.py
+      - ./md2wechat:/usr/local/bin/md2wechat:ro
+      - ./config.yaml:/root/.config/md2wechat/config.yaml:ro
+    restart: unless-stopped
