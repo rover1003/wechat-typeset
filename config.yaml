@@ -1,10 +1,10 @@
 wechat:
-    appid: wxe8a5927558605b29
-    secret: a09a94b505fd359827fc48ea011539b2
+    appid: 填写你的微信公众号 AppID
+    secret: 填写你的微信公众号 AppSecret
 api:
-    md2wechat_key: your_md2wechat_api_key
+    md2wechat_key: 填写 md2wechat API Key
     md2wechat_base_url: https://www.md2wechat.cn
-    image_key: your_image_api_key
+    image_key: 填写 API Key
     image_base_url: https://ark.cn-beijing.volces.com/api/v3
     image_provider: volcengine
     image_model: doubao-seedream-5-0-260128
